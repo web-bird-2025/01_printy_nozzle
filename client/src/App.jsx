@@ -23,6 +23,8 @@ import Profile from "./views/Profile";
 import Orders from "./views/Orders";
 import OrderDetails from "./views/OrderDetails";
 import Printing from "./views/Printing";
+import Filaments from "./views/Filaments";
+import Batteries from "./views/Batteries";
 import Policy from "./views/Policy";
 import Faq from "./views/Faq";
 import AdminPanel from "./views/AdminPanel";
@@ -46,6 +48,8 @@ function App() {
               <Route path="/3d-printing" element={<Printing />} />
               <Route path="/printing" element={<Printing />} />
               <Route path="/products" element={<Product />} />
+              <Route path="/filaments" element={<Filaments />} />
+              <Route path="/batteries" element={<Batteries />} />
               <Route path="/product/:id" element={<ProductDetails />} />
               <Route path="/products/:id" element={<ProductDetails />} />
               <Route path="/cart" element={<Cart />} />

@@ -581,9 +581,9 @@ export default function Checkout() {
     if (
       formData.companyOrder &&
       formData.companyGstin?.trim() &&
-      !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(formData.companyGstin.trim().toUpperCase())
+      formData.companyGstin.trim().length > 20
     ) {
-      toast.warn("Please enter a valid 15-character GSTIN.");
+      toast.warn("Company GSTIN looks too long (max 20 characters).");
       return;
     }
 

@@ -5,6 +5,7 @@ import {
   ArrowUpDown,
   Ban,
   BarChart3,
+  BatteryCharging,
   Box,
   Boxes,
   Calendar,
@@ -296,6 +297,83 @@ function AdminPanel() {
   const [materialColorsTarget, setMaterialColorsTarget] = useState(null);
   const [materialColorIds, setMaterialColorIds] = useState([]);
   const [materialColorsSaving, setMaterialColorsSaving] = useState(false);
+  const [filamentProducts, setFilamentProducts] = useState([]);
+  const [filamentLoading, setFilamentLoading] = useState(false);
+  const [existingFilamentImage, setExistingFilamentImage] = useState(null);  const [filamentForm, setFilamentForm] = useState({
+    name: "",
+    material_id: "",
+    color_name: "",
+    price: "",
+    compare_price: "",
+    stock: "",
+    description: "",
+    imageFile: null,
+    is_active: true,
+  });
+  const [batteryProducts, setBatteryProducts] = useState([]);
+  const [batteryLoading, setBatteryLoading] = useState(false);
+  const [existingBatteryImage, setExistingBatteryImage] = useState(null);
+  const [batteryForm, setBatteryForm] = useState({
+    name: "",
+    chemistry: "",
+    cells: "",
+    parallel: "",
+    cell_model: "",
+    capacity_mah: "",
+    cont_amp: "",
+    peak_amp: "",
+    bms: "Yes",
+    connector: "",
+    dim_l: "",
+    dim_w: "",
+    dim_h: "",
+    price: "",
+    compare_price: "",
+    stock: "",
+    description: "",
+    imageFile: null,
+    is_active: true,
+  });
+
+  // Same series presets as the storefront customize form (voltage is fixed).
+  const BATTERY_SERIES = {
+    NMC: [
+      { s: "1S", v: "3.7V" },
+      { s: "2S", v: "7.4V" },
+      { s: "3S", v: "12V" },
+      { s: "4S", v: "16V" },
+      { s: "5S", v: "21V" },
+      { s: "6S", v: "24V" },
+      { s: "7S", v: "24V" },
+      { s: "10S", v: "36V" },
+      { s: "13S", v: "48V" },
+      { s: "16S", v: "60V" },
+    ],
+    LFP: [
+      { s: "4S", v: "12V" },
+      { s: "8S", v: "24V" },
+      { s: "11S", v: "36V" },
+      { s: "15S", v: "48V" },
+      { s: "19S", v: "60V" },
+    ],
+  };
+
+  const batteryChemistryGroup = (chem) => {
+    if (chem === "LiFePO4") return "LFP";
+    if (chem === "Li-ion" || chem === "LiPo") return "NMC";
+    return "";
+  };
+
+  const batterySeriesValue = (cells, voltage) => {
+    const all = [...BATTERY_SERIES.NMC, ...BATTERY_SERIES.LFP];
+    const s = String(cells || "").trim();
+    const v = String(voltage || "").trim();
+    const withUnit = v && !v.endsWith("V") ? `${v}V` : v;
+    const hit =
+      all.find((p) => p.s === s && p.v === withUnit) ||
+      all.find((p) => p.s === s);
+    return hit ? `${hit.s}|${hit.v}` : "";
+  };
   const [colorForm, setColorForm] = useState({
     name: "",
     hex_code: "#0b6bdc",
@@ -1373,6 +1451,322 @@ function AdminPanel() {
     setColorForm({ name: "", hex_code: "#0b6bdc", is_active: true });
   };
 
+  /* ===================== FILAMENTS (spool products) ===================== */
+  const filamentsCategoryId = useMemo(
+    () => (categories || []).find((c) => c.slug === "3d-printing-filaments")?.id || "",
+    [categories]
+  );
+
+  const resetFilamentForm = () => {
+    setFilamentForm({
+      name: "",
+      material_id: "",
+      color_name: "",
+      price: "",
+      compare_price: "",
+      stock: "",
+      description: "",
+      imageFile: null,
+      is_active: true,
+    });
+    setExistingFilamentImage(null);
+  };
+
+  const loadFilamentProducts = async () => {
+    if (!filamentsCategoryId) return;
+    setFilamentLoading(true);
+    try {
+      const res = await adminService.getProducts({ limit: 200, category: filamentsCategoryId });
+      setFilamentProducts(res.data?.data?.products || []);
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Unable to load filaments");
+    } finally {
+      setFilamentLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "printing" && printSubTab === "filaments") {
+      loadFilamentProducts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, printSubTab, filamentsCategoryId]);
+
+  const openEditFilament = async (product) => {
+    try {
+      const res = await adminService.getProductById(product.id);
+      const p = res.data.data || {};
+      setFilamentForm({
+        name: p.name || "",
+        material_id: p.filament_material_id || "",
+        color_name:
+          p.filament_color_name ||
+          colors.find((c) => String(c.id) === String(p.filament_color_id))?.name ||
+          "",
+        price: p.price || "",
+        compare_price: "",
+        stock: p.stock ?? "",
+        description: p.short_description || p.description || "",
+        imageFile: null,
+        is_active: p.is_active !== undefined ? Boolean(p.is_active) : true,
+      });
+      const imgs = Array.isArray(p.images) ? p.images : [];
+      const primary = imgs.find((i) => i.is_primary) || imgs[0];
+      setExistingFilamentImage(primary?.image_url || p.primary_image || null);
+      setEditing({ type: "filament", id: product.id });
+      setActiveModal("filament");
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Unable to load filament");
+    }
+  };
+
+  const submitFilament = async (event) => {
+    event.preventDefault();
+    if (!filamentsCategoryId) {
+      toast.error("Filaments category is missing — reload the page and try again");
+      return;
+    }
+    if (!filamentForm.name?.trim() || filamentForm.price === "" || filamentForm.stock === "") {
+      toast.error("Filament name, price and stock are required");
+      return;
+    }
+    try {
+      // Color is free text: link the matching color (case-insensitive) or
+      // create it so the filament keeps a real color link.
+      let filamentColorId = "";
+      const typedColor = filamentForm.color_name?.trim() || "";
+      if (typedColor) {
+        const match = (colors || []).find(
+          (c) => String(c.name || "").trim().toLowerCase() === typedColor.toLowerCase()
+        );
+        if (match) {
+          filamentColorId = match.id;
+        } else {
+          const created = await adminService.createColor({ name: typedColor, hex_code: "#9AA5B1", is_active: true });
+          filamentColorId = created.data?.data?.colorId || "";
+          if (filamentColorId) {
+            toast.success(`New color "${typedColor}" created`);
+            loadAdminData();
+          }
+        }
+      }
+      const form = new FormData();
+      form.append("name", filamentForm.name.trim());
+      form.append("category_id", filamentsCategoryId);
+      form.append("price", filamentForm.price);
+      form.append("stock", filamentForm.stock);
+      form.append("short_description", filamentForm.description || filamentForm.name.trim());
+      form.append("description", filamentForm.description || filamentForm.name.trim());
+      form.append("filament_material_id", filamentForm.material_id || "");
+      form.append("filament_color_id", filamentColorId || "");
+      form.append("is_active", filamentForm.is_active ? "true" : "false");
+      if (filamentForm.imageFile) form.append("images", filamentForm.imageFile);
+      if (editing?.id) {
+        await adminService.updateProduct(editing.id, form);
+        toast.success("Filament updated");
+      } else {
+        await adminService.createProduct(form);
+        toast.success("Filament created");
+      }
+      closeModal();
+      resetFilamentForm();
+      loadFilamentProducts();
+      loadAdminData();
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Filament save failed");
+    }
+  };
+
+  const deleteFilament = async (id, name) => {
+    try {
+      await adminService.deleteProduct(id);
+      toast.success(`Filament${name ? ` ${name}` : ""} deleted`);
+      loadFilamentProducts();
+      loadAdminData();
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Filament delete failed");
+    }
+  };
+
+  /* ===================== BATTERY PACKS (prebuilt products) ===================== */
+  const batteriesCategoryId = useMemo(
+    () => (categories || []).find((c) => c.slug === "lithium-battery-packs")?.id || "",
+    [categories]
+  );
+
+  const resetBatteryForm = () => {
+    setBatteryForm({
+      name: "",
+      chemistry: "",
+      cells: "",
+      parallel: "",
+      cell_model: "",
+      capacity_mah: "",
+      cont_amp: "",
+      peak_amp: "",
+      bms: "Yes",
+      connector: "",
+      dim_l: "",
+      dim_w: "",
+      dim_h: "",
+      price: "",
+      compare_price: "",
+      stock: "",
+      description: "",
+      imageFile: null,
+      is_active: true,
+    });
+    setExistingBatteryImage(null);
+  };
+
+  const buildBatterySpecs = () => {
+    const specs = {};
+    const t = (v) => String(v || "").trim();
+    if (t(batteryForm.chemistry)) specs["Chemistry"] = t(batteryForm.chemistry);
+    const cfg = `${t(batteryForm.cells)}${t(batteryForm.parallel) ? ` x ${t(batteryForm.parallel)}P` : ""}`;
+    if (t(batteryForm.cells)) specs["Configuration"] = cfg;
+    if (t(batteryForm.cell_model)) specs["Cell Model"] = t(batteryForm.cell_model);
+    if (t(batteryForm.capacity_mah)) specs["Capacity"] = `${t(batteryForm.capacity_mah)} mAh`;
+    const allPresets = [...BATTERY_SERIES.NMC, ...BATTERY_SERIES.LFP];
+    const preset = allPresets.find((p) => p.s === t(batteryForm.cells));
+    if (preset) specs["Voltage"] = preset.v;
+    if (t(batteryForm.cont_amp)) specs["Continuous Current"] = `${t(batteryForm.cont_amp)} A`;
+    if (t(batteryForm.peak_amp)) specs["Peak Current"] = `${t(batteryForm.peak_amp)} A`;
+    specs["BMS"] = batteryForm.bms || "Yes";
+    if (t(batteryForm.connector)) specs["Connector"] = t(batteryForm.connector);
+    const dims = [t(batteryForm.dim_l), t(batteryForm.dim_w), t(batteryForm.dim_h)];
+    if (dims.some(Boolean)) specs["Dimensions"] = `${dims[0] || "-"} × ${dims[1] || "-"} × ${dims[2] || "-"} mm`;
+    return specs;
+  };
+
+  const loadBatteryProducts = async () => {
+    if (!batteriesCategoryId) return;
+    setBatteryLoading(true);
+    try {
+      const res = await adminService.getProducts({ limit: 200, category: batteriesCategoryId });
+      setBatteryProducts(res.data?.data?.products || []);
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Unable to load battery packs");
+    } finally {
+      setBatteryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "batteries") {
+      loadBatteryProducts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, batteriesCategoryId]);
+
+  const readBatterySpecs = (specs) => {
+    let obj = {};
+    if (specs && typeof specs === "object" && !Array.isArray(specs)) {
+      obj = specs;
+    } else if (typeof specs === "string" && specs.trim()) {
+      try {
+        const parsed = JSON.parse(specs);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) obj = parsed;
+      } catch {
+        /* specs stored as list — ignore */
+      }
+    }
+    const num = (v) => String(v ?? "").replace(/[^0-9.]/g, "");
+    const config = String(obj["Configuration"] || "");
+    const configMatch = config.match(/(\d+S)/i);
+    const parallelMatch = config.match(/(\d+)\s*P/i);
+    const dimParts = String(obj["Dimensions"] || "")
+      .split("×")
+      .map((p) => p.replace(/[^0-9.]/g, ""));
+    return {
+      chemistry: obj["Chemistry"] || "",
+      cells: configMatch ? configMatch[1].toUpperCase() : "",
+      parallel: parallelMatch ? parallelMatch[1] : "",
+      cell_model: obj["Cell Model"] || "",
+      capacity_mah: num(obj["Capacity"]),
+      cont_amp: num(obj["Continuous Current"] || obj["Max Continuous Current"]),
+      peak_amp: num(obj["Peak Current"]),
+      bms: /no/i.test(String(obj["BMS"] || "")) ? "No" : "Yes",
+      connector: obj["Connector"] || "",
+      dim_l: dimParts[0] || "",
+      dim_w: dimParts[1] || "",
+      dim_h: dimParts[2] || "",
+    };
+  };
+
+  const openEditBattery = async (product) => {
+    try {
+      const res = await adminService.getProductById(product.id);
+      const p = res.data.data || {};
+      const specParts = readBatterySpecs(p.specifications);
+      setBatteryForm({
+        name: p.name || "",
+        ...specParts,
+        price: p.price || "",
+        compare_price: "",
+        stock: p.stock ?? "",
+        description: p.short_description || p.description || "",
+        imageFile: null,
+        is_active: p.is_active !== undefined ? Boolean(p.is_active) : true,
+      });
+      const imgs = Array.isArray(p.images) ? p.images : [];
+      const primary = imgs.find((i) => i.is_primary) || imgs[0];
+      setExistingBatteryImage(primary?.image_url || p.primary_image || null);
+      setEditing({ type: "battery", id: product.id });
+      setActiveModal("battery");
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Unable to load battery pack");
+    }
+  };
+
+  const submitBattery = async (event) => {
+    event.preventDefault();
+    if (!batteriesCategoryId) {
+      toast.error("Battery category is missing — reload the page and try again");
+      return;
+    }
+    if (!batteryForm.name?.trim() || batteryForm.price === "" || batteryForm.stock === "") {
+      toast.error("Pack name, price and stock are required");
+      return;
+    }
+    try {
+      const form = new FormData();
+      form.append("name", batteryForm.name.trim());
+      form.append("category_id", batteriesCategoryId);
+      form.append("price", batteryForm.price);
+      form.append("stock", batteryForm.stock);
+      form.append("short_description", batteryForm.description || batteryForm.name.trim());
+      form.append("description", batteryForm.description || batteryForm.name.trim());
+      form.append("specifications", JSON.stringify(buildBatterySpecs()));
+      form.append("is_active", batteryForm.is_active ? "true" : "false");
+      if (batteryForm.imageFile) form.append("images", batteryForm.imageFile);
+      if (editing?.id) {
+        await adminService.updateProduct(editing.id, form);
+        toast.success("Battery pack updated");
+      } else {
+        await adminService.createProduct(form);
+        toast.success("Battery pack created");
+      }
+      closeModal();
+      resetBatteryForm();
+      loadBatteryProducts();
+      loadAdminData();
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Battery pack save failed");
+    }
+  };
+
+  const deleteBattery = async (id, name) => {
+    try {
+      await adminService.deleteProduct(id);
+      toast.success(`Battery pack${name ? ` ${name}` : ""} deleted`);
+      loadBatteryProducts();
+      loadAdminData();
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Battery pack delete failed");
+    }
+  };
+
   const submitColor = async (event) => {
     event.preventDefault();
     if (!colorForm.name) {
@@ -2103,6 +2497,7 @@ function AdminPanel() {
     { id: "orders", label: "Orders", Icon: ClipboardList },
     { id: "manual", label: "Manual Orders", Icon: FileText },
     { id: "printing", label: "3D Printing", Icon: Cuboid },
+    { id: "batteries", label: "Battery Packs", Icon: BatteryCharging },
     { id: "users", label: "Users", Icon: Users },
     { id: "coupons", label: "Coupons", Icon: Tag },
     { id: "catalog", label: "Catalog", Icon: Layers },
@@ -2115,7 +2510,7 @@ function AdminPanel() {
 
   const navGroups = [
     { label: "Overview", ids: ["dashboard"] },
-    { label: "Sales", ids: ["orders", "manual", "printing", "coupons"] },
+    { label: "Sales", ids: ["orders", "manual", "printing", "batteries", "coupons"] },
     { label: "Catalog", ids: ["products", "catalog", "brands", "reviews"] },
     { label: "Customers", ids: ["users", "subscribers", "contacts"] },
     { label: "System", ids: ["settings"] },
@@ -2168,6 +2563,7 @@ function AdminPanel() {
     { id: "quotations", label: "3D Print Quotations", count: quotations.length, Icon: MessageSquare },
     { id: "colors", label: "Colors", count: colors.length, Icon: Palette },
     { id: "materials", label: "Materials", count: materials.length, Icon: Cuboid },
+    { id: "filaments", label: "Filaments", count: filamentProducts.length, Icon: Layers },
     { id: "rates", label: "Hourly Rates", count: hourlySlabs.length, Icon: Clock },
   ];
 
@@ -4162,6 +4558,93 @@ function AdminPanel() {
                 </div>
                 )}
 
+                {printSubTab === "filaments" && (
+                <div className="admin-panel admin-section-panel">
+                  <div className="admin-panel-title-row admin-colors-head">
+                    <div className="admin-colors-title">
+                      <span className="admin-print-orders-ico">
+                        <Layers size={22} />
+                      </span>
+                      <div>
+                        <h2>3D Printing Filaments</h2>
+                        <p className="admin-panel-subtitle">Spool products sold on the storefront — each links a material, a color, a price, stock and an image.</p>
+                      </div>
+                    </div>
+                    <div className="admin-actions compact admin-colors-tools">
+                      <span className="admin-count-badge">{filamentProducts.length} filaments</span>
+                      <button type="button" className="admin-primary" onClick={() => { setEditing(null); resetFilamentForm(); setActiveModal("filament"); }}>
+                        <Plus size={16} />
+                        <span>Add Filament</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="admin-list">
+                    {filamentLoading ? (
+                      <div className="admin-empty small">Loading filaments…</div>
+                    ) : filamentProducts.length ? (
+                      filamentProducts.map((item) => (
+                        <article className="admin-user-row" key={item.id} style={{ gridTemplateColumns: "52px minmax(0, 1fr) 110px 90px 44px 44px" }}>
+                          <div className="admin-avatar" style={{ borderRadius: 8 }}>
+                            {item.primary_image ? (
+                              <img src={item.primary_image} alt={item.name} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }} />
+                            ) : (
+                              item.name?.[0]?.toUpperCase()
+                            )}
+                          </div>
+                          <div>
+                            <strong>{item.name}</strong>
+                            <span>
+                              {(item.filament_material_name || materials.find((m) => String(m.id) === String(item.filament_material_id))?.name || "—")}
+                              {" • "}
+                              {(item.filament_color_name || colors.find((c) => String(c.id) === String(item.filament_color_id))?.name || "—")}
+                              {" • "}Rs. {Number(item.price || 0).toLocaleString("en-IN")} • Stock {item.stock ?? 0}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            className={`admin-toggle ${item.is_active ? "active" : ""}`}
+                            onClick={async () => {
+                              try {
+                                await adminService.updateProduct(item.id, { is_active: !item.is_active });
+                                toast.success("Filament updated");
+                                loadFilamentProducts();
+                              } catch (error) {
+                                toast.error(error?.response?.data?.message || "Filament update failed");
+                              }
+                            }}
+                          >
+                            {item.is_active ? "Active" : "Inactive"}
+                          </button>
+                          <span className="admin-count-badge">Qty {item.stock ?? 0}</span>
+                          <button
+                            type="button"
+                            className="admin-icon"
+                            onClick={() => openEditFilament(item)}
+                            title="Edit filament"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            className="admin-icon danger"
+                            onClick={() => {
+                              if (window.confirm(`Delete filament "${item.name}"?`)) {
+                                deleteFilament(item.id, item.name);
+                              }
+                            }}
+                            title="Delete filament"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </article>
+                      ))
+                    ) : (
+                      <div className="admin-empty small">No filaments yet — add one with material, color, price, stock and image.</div>
+                    )}
+                  </div>
+                </div>
+                )}
+
                 {printSubTab === "rates" && (
                 <div className="admin-panel admin-section-panel">
                   <div className="admin-panel-title-row admin-colors-head">
@@ -4403,6 +4886,92 @@ function AdminPanel() {
                 </div>
                 )}
 
+              </section>
+            )}
+
+            {activeTab === "batteries" && (
+              <section className="admin-printing-layout">
+                <div className="admin-panel admin-section-panel">
+                  <div className="admin-panel-title-row admin-colors-head">
+                    <div className="admin-colors-title">
+                      <span className="admin-print-orders-ico">
+                        <BatteryCharging size={22} />
+                      </span>
+                      <div>
+                        <h2>Lithium Battery Packs</h2>
+                        <p className="admin-panel-subtitle">Prebuilt packs sold on the storefront — voltage, capacity, discharge, price, stock and image.</p>
+                      </div>
+                    </div>
+                    <div className="admin-actions compact admin-colors-tools">
+                      <span className="admin-count-badge">{batteryProducts.length} packs</span>
+                      <button type="button" className="admin-primary" onClick={() => { setEditing(null); resetBatteryForm(); setActiveModal("battery"); }}>
+                        <Plus size={16} />
+                        <span>Add Battery Pack</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="admin-list">
+                    {batteryLoading ? (
+                      <div className="admin-empty small">Loading battery packs…</div>
+                    ) : batteryProducts.length ? (
+                      batteryProducts.map((item) => (
+                        <article className="admin-user-row" key={item.id} style={{ gridTemplateColumns: "52px minmax(0, 1fr) 110px 90px 44px 44px" }}>
+                          <div className="admin-avatar" style={{ borderRadius: 8 }}>
+                            {item.primary_image ? (
+                              <img src={item.primary_image} alt={item.name} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }} />
+                            ) : (
+                              item.name?.[0]?.toUpperCase()
+                            )}
+                          </div>
+                          <div>
+                            <strong>{item.name}</strong>
+                            <span>
+                              Rs. {Number(item.price || 0).toLocaleString("en-IN")} • Stock {item.stock ?? 0}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            className={`admin-toggle ${item.is_active ? "active" : ""}`}
+                            onClick={async () => {
+                              try {
+                                await adminService.updateProduct(item.id, { is_active: !item.is_active });
+                                toast.success("Battery pack updated");
+                                loadBatteryProducts();
+                              } catch (error) {
+                                toast.error(error?.response?.data?.message || "Battery pack update failed");
+                              }
+                            }}
+                          >
+                            {item.is_active ? "Active" : "Inactive"}
+                          </button>
+                          <span className="admin-count-badge">Qty {item.stock ?? 0}</span>
+                          <button
+                            type="button"
+                            className="admin-icon"
+                            onClick={() => openEditBattery(item)}
+                            title="Edit battery pack"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            className="admin-icon danger"
+                            onClick={() => {
+                              if (window.confirm(`Delete battery pack "${item.name}"?`)) {
+                                deleteBattery(item.id, item.name);
+                              }
+                            }}
+                            title="Delete battery pack"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </article>
+                      ))
+                    ) : (
+                      <div className="admin-empty small">No battery packs yet — add one with voltage, capacity, discharge, price, stock and image.</div>
+                    )}
+                  </div>
+                </div>
               </section>
             )}
 
@@ -6597,6 +7166,192 @@ function AdminPanel() {
           <button className="admin-primary" type="submit">
             <Save size={16} />
             <span>{editing?.id ? "Update Material" : "Create Material"}</span>
+          </button>
+        </form>
+      </AdminModal>
+
+      <AdminModal
+        open={activeModal === "filament"}
+        title={editing?.id ? "Edit Filament" : "Add Filament"}
+        subtitle="A spool product for the storefront filaments page."
+        onClose={closeModal}
+      >
+        <form className="admin-form" onSubmit={submitFilament}>
+          <input required placeholder="Filament name (e.g. PLA Black 1kg)" value={filamentForm.name} onChange={(e) => setFilamentForm({ ...filamentForm, name: e.target.value })} />
+          <div className="admin-form-grid">
+            <select required value={filamentForm.material_id} onChange={(e) => setFilamentForm({ ...filamentForm, material_id: e.target.value, color_id: "" })} aria-label="Filament material">
+              <option value="">Select material *</option>
+              {(materials || []).filter((m) => m.is_active).map((m) => (
+                <option key={m.id} value={m.id}>{m.name} — ₹{m.price_per_gram}/g</option>
+              ))}
+            </select>
+            <input
+              value={filamentForm.color_name || ""}
+              onChange={(e) => setFilamentForm({ ...filamentForm, color_name: e.target.value })}
+              placeholder="Color name (e.g. Black)"
+              aria-label="Filament color name"
+            />
+            <input required type="number" min="0" step="0.01" placeholder="Price (Rs.)" value={filamentForm.price} onChange={(e) => setFilamentForm({ ...filamentForm, price: e.target.value })} />
+            <input required type="number" min="0" step="1" placeholder="Stock" value={filamentForm.stock} onChange={(e) => setFilamentForm({ ...filamentForm, stock: e.target.value })} />
+          </div>
+          <textarea placeholder="Short description" value={filamentForm.description} onChange={(e) => setFilamentForm({ ...filamentForm, description: e.target.value })} />
+          {(filamentForm.imageFile || existingFilamentImage) && (
+            <div className="pf-file-chip">
+              <img
+                src={filamentForm.imageFile ? URL.createObjectURL(filamentForm.imageFile) : existingFilamentImage}
+                alt="Filament"
+                style={{ width: 52, height: 52, objectFit: "cover", borderRadius: 8 }}
+              />
+              <div>
+                <strong>{filamentForm.imageFile ? filamentForm.imageFile.name : "Current filament image"}</strong>
+                <span>{filamentForm.imageFile ? "Uploads on save" : "Choose a file below to replace it"}</span>
+              </div>
+              {filamentForm.imageFile && (
+                <button type="button" aria-label="Remove filament image" onClick={() => setFilamentForm((prev) => ({ ...prev, imageFile: null }))}>
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          )}
+          <label className="pf-dropzone" style={{ padding: "12px" }}>
+            <Upload size={18} />
+            <strong>Filament image</strong>
+            <span>PNG, JPG, WebP (Max 5MB) — shown on the storefront</span>
+            <input
+              type="file"
+              hidden
+              accept="image/*"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) {
+                  if (f.size > 5 * 1024 * 1024) {
+                    toast.error("Image must be under 5MB");
+                  } else {
+                    setFilamentForm((prev) => ({ ...prev, imageFile: f }));
+                  }
+                }
+                e.target.value = "";
+              }}
+            />
+          </label>
+          <label className="admin-check">
+            <input type="checkbox" checked={filamentForm.is_active} onChange={(e) => setFilamentForm({ ...filamentForm, is_active: e.target.checked })} />
+            Available for customers
+          </label>
+          <button className="admin-primary" type="submit">
+            <Save size={16} />
+            <span>{editing?.id ? "Update Filament" : "Create Filament"}</span>
+          </button>
+        </form>
+      </AdminModal>
+
+      <AdminModal
+        open={activeModal === "battery"}
+        title={editing?.id ? "Edit Battery Pack" : "Add Battery Pack"}
+        subtitle="A prebuilt lithium pack for the storefront batteries page."
+        onClose={closeModal}
+      >
+        <form className="admin-form" onSubmit={submitBattery}>
+          <input required placeholder="Pack name (e.g. 11.1V 2200mAh 3S Li-ion Pack)" value={batteryForm.name} onChange={(e) => setBatteryForm({ ...batteryForm, name: e.target.value })} />
+          <div className="admin-form-grid">
+            <select value={batteryForm.chemistry} onChange={(e) => {
+              const nextChem = e.target.value;
+              const group = batteryChemistryGroup(nextChem);
+              const stillValid = group && BATTERY_SERIES[group].some((p) => p.s === batteryForm.cells);
+              setBatteryForm((prev) => ({ ...prev, chemistry: nextChem, ...(stillValid ? {} : { cells: "" }) }));
+            }} aria-label="Battery chemistry">
+              <option value="">Chemistry</option>
+              <option>Li-ion</option>
+              <option>LiPo</option>
+              <option>LiFePO4</option>
+            </select>
+            <select value={batterySeriesValue(batteryForm.cells)} onChange={(e) => {
+              const [s] = String(e.target.value || "").split("|");
+              setBatteryForm((prev) => ({ ...prev, cells: s || "" }));
+            }} aria-label="Series connection">
+              <option value="">Series</option>
+              {(batteryForm.chemistry
+                ? [[batteryForm.chemistry === "LiFePO4" ? "LFP" : "NMC", BATTERY_SERIES[batteryForm.chemistry === "LiFePO4" ? "LFP" : "NMC"]]]
+                : [["NMC", BATTERY_SERIES.NMC], ["LFP", BATTERY_SERIES.LFP]]
+              ).map(([gName, presets]) => (
+                <optgroup key={gName} label={gName}>
+                  {presets.map((p) => (
+                    <option key={`${gName}-${p.s}`} value={`${p.s}|${p.v}`}>{p.s} {p.v}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+            <input placeholder="Parallel (P, e.g. 2)" value={batteryForm.parallel} onChange={(e) => setBatteryForm({ ...batteryForm, parallel: e.target.value })} />
+            <select value={batteryForm.cell_model} onChange={(e) => setBatteryForm({ ...batteryForm, cell_model: e.target.value })} aria-label="Cell model">
+              <option value="">Cell model</option>
+              <option>18650</option>
+              <option>21700</option>
+              <option>26650</option>
+              <option>32700</option>
+              <option>Pouch cell</option>
+            </select>
+            <input placeholder="Capacity (mAh)" value={batteryForm.capacity_mah} onChange={(e) => setBatteryForm({ ...batteryForm, capacity_mah: e.target.value })} />
+            <input placeholder="Voltage (auto from series)" value={(() => { const all = [...BATTERY_SERIES.NMC, ...BATTERY_SERIES.LFP]; return (all.find((p) => p.s === batteryForm.cells) || {}).v || ""; })()} disabled readOnly aria-label="Nominal voltage" />
+            <input placeholder="Continuous current (A)" value={batteryForm.cont_amp} onChange={(e) => setBatteryForm({ ...batteryForm, cont_amp: e.target.value })} />
+            <input placeholder="Peak current (A)" value={batteryForm.peak_amp} onChange={(e) => setBatteryForm({ ...batteryForm, peak_amp: e.target.value })} />
+            <select value={batteryForm.bms} onChange={(e) => setBatteryForm({ ...batteryForm, bms: e.target.value })} aria-label="BMS required">
+              <option value="Yes">BMS: Yes</option>
+              <option value="No">BMS: No</option>
+            </select>
+            <input placeholder="Connector type" value={batteryForm.connector} onChange={(e) => setBatteryForm({ ...batteryForm, connector: e.target.value })} />
+            <input placeholder="Length (mm)" value={batteryForm.dim_l} onChange={(e) => setBatteryForm({ ...batteryForm, dim_l: e.target.value })} />
+            <input placeholder="Width (mm)" value={batteryForm.dim_w} onChange={(e) => setBatteryForm({ ...batteryForm, dim_w: e.target.value })} />
+            <input placeholder="Height (mm)" value={batteryForm.dim_h} onChange={(e) => setBatteryForm({ ...batteryForm, dim_h: e.target.value })} />
+            <input required type="number" min="0" step="0.01" placeholder="Price (Rs.)" value={batteryForm.price} onChange={(e) => setBatteryForm({ ...batteryForm, price: e.target.value })} />
+            <input required type="number" min="0" step="1" placeholder="Stock" value={batteryForm.stock} onChange={(e) => setBatteryForm({ ...batteryForm, stock: e.target.value })} />
+          </div>
+          <textarea placeholder="Short description" value={batteryForm.description} onChange={(e) => setBatteryForm({ ...batteryForm, description: e.target.value })} />
+          {(batteryForm.imageFile || existingBatteryImage) && (
+            <div className="pf-file-chip">
+              <img
+                src={batteryForm.imageFile ? URL.createObjectURL(batteryForm.imageFile) : existingBatteryImage}
+                alt="Battery pack"
+                style={{ width: 52, height: 52, objectFit: "cover", borderRadius: 8 }}
+              />
+              <div>
+                <strong>{batteryForm.imageFile ? batteryForm.imageFile.name : "Current pack image"}</strong>
+                <span>{batteryForm.imageFile ? "Uploads on save" : "Choose a file below to replace it"}</span>
+              </div>
+              {batteryForm.imageFile && (
+                <button type="button" aria-label="Remove pack image" onClick={() => setBatteryForm((prev) => ({ ...prev, imageFile: null }))}>
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          )}
+          <label className="pf-dropzone" style={{ padding: "12px" }}>
+            <Upload size={18} />
+            <strong>Pack image</strong>
+            <span>PNG, JPG, WebP (Max 5MB) — shown on the storefront</span>
+            <input
+              type="file"
+              hidden
+              accept="image/*"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) {
+                  if (f.size > 5 * 1024 * 1024) {
+                    toast.error("Image must be under 5MB");
+                  } else {
+                    setBatteryForm((prev) => ({ ...prev, imageFile: f }));
+                  }
+                }
+                e.target.value = "";
+              }}
+            />
+          </label>
+          <label className="admin-check">
+            <input type="checkbox" checked={batteryForm.is_active} onChange={(e) => setBatteryForm({ ...batteryForm, is_active: e.target.checked })} />
+            Available for customers
+          </label>
+          <button className="admin-primary" type="submit">
+            <Save size={16} />
+            <span>{editing?.id ? "Update Battery Pack" : "Create Battery Pack"}</span>
           </button>
         </form>
       </AdminModal>

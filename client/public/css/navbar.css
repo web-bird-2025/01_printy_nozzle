@@ -493,9 +493,51 @@
   position: relative;
 }
 
+.printing-nav-item {
+  position: relative;
+}
+
+.printing-nav-item::after {
+  content: "";
+
+  position: absolute;
+
+  left: 0;
+
+  right: 0;
+
+  top: 100%;
+
+  width: auto;
+
+  height: 8px;
+
+  background: transparent;
+
+  pointer-events: auto;
+}
+
+.printing-nav-item.open
+.products-dropdown,
+.printing-nav-item:focus-within
+.products-dropdown {
+  opacity: 1;
+
+  visibility: visible;
+
+  pointer-events: auto;
+
+  transform:
+    translateY(0);
+}
+
 .products-nav-item.open
 .products-arrow,
 .products-nav-item:focus-within
+.products-arrow,
+.printing-nav-item.open
+.products-arrow,
+.printing-nav-item:focus-within
 .products-arrow {
   transform:
     rotate(180deg);

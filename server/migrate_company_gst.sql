@@ -14,6 +14,8 @@ ALTER TABLE `manual_invoices` ADD COLUMN IF NOT EXISTS `company_address` VARCHAR
 ALTER TABLE `manual_invoices` ADD COLUMN IF NOT EXISTS `company_gstin` VARCHAR(20) NULL AFTER `company_address`;
 ALTER TABLE `manual_invoices` ADD COLUMN IF NOT EXISTS `round_total` DECIMAL(10,2) NULL AFTER `discount`;
 ALTER TABLE `manual_invoices` ADD COLUMN IF NOT EXISTS `file_name` VARCHAR(300) NULL AFTER `invoice_number`;
+ALTER TABLE `manual_invoice_items` ADD COLUMN IF NOT EXISTS `battery_specs` TEXT NULL AFTER `surface_finish`;
+ALTER TABLE `manual_invoice_items` MODIFY COLUMN `item_type` ENUM('product', 'print', 'custom', 'battery') DEFAULT 'product';
 
 -- Company GSTIN printed on invoices (fills only empty slots)
 INSERT INTO site_settings (setting_key, setting_value, setting_type, description) VALUES

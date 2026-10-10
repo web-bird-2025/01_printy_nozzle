@@ -362,7 +362,93 @@ function ManualOrders({ categories = [], brands = [], products = [], materials =
     }));
   };
 
-  const updateRow = (key, patch, recomposePrint = false) => {
+
+// Battery series presets shared with the storefront customize form:
+// voltage is fixed per series — no manual voltage input.
+const SERIES_PRESETS = {
+  NMC: [
+    { s: "1S", v: "3.7V" },
+    { s: "2S", v: "7.4V" },
+    { s: "3S", v: "12V" },
+    { s: "4S", v: "16V" },
+    { s: "5S", v: "21V" },
+    { s: "6S", v: "24V" },
+    { s: "7S", v: "24V" },
+    { s: "10S", v: "36V" },
+    { s: "13S", v: "48V" },
+    { s: "16S", v: "60V" },
+  ],
+  LFP: [
+    { s: "4S", v: "12V" },
+    { s: "8S", v: "24V" },
+    { s: "11S", v: "36V" },
+    { s: "15S", v: "48V" },
+    { s: "19S", v: "60V" },
+  ],
+};
+
+const withUnit = (value, unit) => {
+  const v = String(value || "").trim();
+  if (!v) return "";
+  return v.endsWith(unit) ? v : `${v}${unit}`;
+};
+
+const composeBatteryDescription = (row) => {
+    const b = (k) => String(row[k] || "").trim();
+    const cells = b("b_cells") + (b("b_parallel") ? `${b("b_parallel")}P` : "");
+    const head = ["Custom Battery Pack", cells, b("b_chemistry")].filter(Boolean).join(" ");
+    const specs = [
+      b("b_capacity_mah") && withUnit(b("b_capacity_mah"), "mAh"),
+      b("b_voltage_v") && withUnit(b("b_voltage_v"), "V"),
+    ].filter(Boolean).join(" ");
+    const amps = [b("b_cont_amp") && withUnit(b("b_cont_amp"), "A") + " cont.", b("b_peak_amp") && withUnit(b("b_peak_amp"), "A") + " peak"]
+      .filter(Boolean).join(" / ");
+    const dims = [b("b_dim_l"), b("b_dim_w"), b("b_dim_h")].some(Boolean)
+      ? `${b("b_dim_l") || "-"}×${b("b_dim_w") || "-"}×${b("b_dim_h") || "-"}mm`
+      : "";
+    const tail = [
+      amps || "",
+      b("b_bms") ? `BMS: ${b("b_bms")}` : "",
+      b("b_connector"),
+      dims,
+      b("b_cell_model"),
+    ].filter(Boolean).join(" • ");
+    return head + (specs ? ` ${specs}` : "") + (tail ? ` — ${tail}` : "");
+  };
+
+  const addBatteryRow = () => {
+    setForm((prev) => ({
+      ...prev,
+      items: [
+        ...prev.items,
+        {
+          key: newKey(),
+          item_type: "battery",
+          product_id: null,
+          description: "Custom Battery Pack",
+          hsn: "",
+          rate: "",
+          qty: 1,
+          disc: "",
+          b_chemistry: "",
+          b_cells: "",
+          b_parallel: "",
+          b_cell_model: "",
+          b_capacity_mah: "",
+          b_voltage_v: "",
+          b_cont_amp: "",
+          b_peak_amp: "",
+          b_bms: "Yes",
+          b_connector: "",
+          b_dim_l: "",
+          b_dim_w: "",
+          b_dim_h: "",
+        },
+      ],
+    }));
+  };
+
+  const updateRow = (key, patch, recomposePrint = false, recomposeBattery = false) => {
     setForm((prev) => ({
       ...prev,
       items: prev.items.map((it) => {
@@ -370,6 +456,9 @@ function ManualOrders({ categories = [], brands = [], products = [], materials =
         const next = { ...it, ...patch };
         if (recomposePrint && next.item_type === "print" && !("description" in patch)) {
           next.description = composePrintDescription(next);
+        }
+        if (recomposeBattery && next.item_type === "battery" && !("description" in patch)) {
+          next.description = composeBatteryDescription(next);
         }
         // Auto-suggest the rate from filament weight + print time while the
         // rate is still empty (never overwrites a manually entered rate).
@@ -491,6 +580,23 @@ function ManualOrders({ categories = [], brands = [], products = [], materials =
       surface_finish: it.surface_finish || "",
       filament_weight_grams: it.filament_weight_grams !== "" && it.filament_weight_grams != null ? Number(it.filament_weight_grams) : null,
       print_time_hours: it.print_time_hours !== "" && it.print_time_hours != null ? Number(it.print_time_hours) : null,
+      battery_specs: it.item_type === "battery"
+        ? JSON.stringify({
+            chemistry: it.b_chemistry || "",
+            cells: it.b_cells || "",
+            parallel: it.b_parallel || "",
+            cell_model: it.b_cell_model || "",
+            capacity_mah: it.b_capacity_mah || "",
+            voltage_v: it.b_voltage_v || "",
+            cont_amp: it.b_cont_amp || "",
+            peak_amp: it.b_peak_amp || "",
+            bms: it.b_bms || "",
+            connector: it.b_connector || "",
+            dim_l: it.b_dim_l || "",
+            dim_w: it.b_dim_w || "",
+            dim_h: it.b_dim_h || "",
+          })
+        : null,
     })),
     shippingCost: Number(form.shippingCost) || 0,
     deliveryOption: form.deliveryOption,
@@ -542,6 +648,35 @@ function ManualOrders({ categories = [], brands = [], products = [], materials =
     setForm(blankForm());
     setCustomerSuggestions([]);
     setShowSuggestions(false);
+  };
+
+  const parseBatterySpecs = (raw) => {
+    const empty = {
+      b_chemistry: "", b_cells: "", b_parallel: "", b_cell_model: "", b_capacity_mah: "",
+      b_voltage_v: "", b_cont_amp: "", b_peak_amp: "", b_bms: "Yes",
+      b_connector: "", b_dim_l: "", b_dim_w: "", b_dim_h: "",
+    };
+    if (!raw) return empty;
+    try {
+      const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+      return {
+        b_chemistry: parsed.chemistry || "",
+        b_cells: parsed.cells || "",
+        b_parallel: parsed.parallel || "",
+        b_cell_model: parsed.cell_model || "",
+        b_capacity_mah: parsed.capacity_mah || "",
+        b_voltage_v: parsed.voltage_v || "",
+        b_cont_amp: parsed.cont_amp || "",
+        b_peak_amp: parsed.peak_amp || "",
+        b_bms: parsed.bms || "Yes",
+        b_connector: parsed.connector || "",
+        b_dim_l: parsed.dim_l || "",
+        b_dim_w: parsed.dim_w || "",
+        b_dim_h: parsed.dim_h || "",
+      };
+    } catch {
+      return empty;
+    }
   };
 
   const startEdit = async (inv) => {
@@ -604,6 +739,7 @@ function ManualOrders({ categories = [], brands = [], products = [], materials =
           surface_finish: it.surface_finish || "standard",
           filament_weight_grams: it.filament_weight_grams ?? "",
           print_time_hours: it.print_time_hours ?? "",
+          ...parseBatterySpecs(it.battery_specs),
         })),
         deliveryOption: d.delivery_option || "standard",
         shippingCost: d.shipping_cost ?? "",
@@ -938,6 +1074,7 @@ function ManualOrders({ categories = [], brands = [], products = [], materials =
               </select>
               <span className="manual-add-btns">
                 <button type="button" className="admin-secondary" onClick={addPrintRow}><Plus size={14} /> 3D Print</button>
+                <button type="button" className="admin-secondary" onClick={addBatteryRow}><Plus size={14} /> Battery Pack</button>
                 <button type="button" className="admin-secondary" onClick={addCustomRow}><Plus size={14} /> Custom</button>
               </span>
             </div>
@@ -963,12 +1100,12 @@ function ManualOrders({ categories = [], brands = [], products = [], materials =
                     <div className="manual-item-top">
                       <span className="manual-item-num">{idx + 1}</span>
                       <span className={`manual-type-pill ${it.item_type}`}>
-                        {it.item_type === "print" ? "3D Print" : it.item_type === "custom" ? "Custom" : "Product"}
+                        {it.item_type === "print" ? "3D Print" : it.item_type === "battery" ? "Battery" : it.item_type === "custom" ? "Custom" : "Product"}
                       </span>
                       <input
                         required
                         className="manual-desc"
-                        placeholder={it.item_type === "print" ? "Description (auto from print specs)" : "Description"}
+                        placeholder={it.item_type === "print" ? "Description (auto from print specs)" : it.item_type === "battery" ? "Description (auto from battery specs)" : "Description"}
                         value={it.description}
                         onChange={(e) => updateRow(it.key, { description: e.target.value })}
                       />
@@ -989,6 +1126,66 @@ function ManualOrders({ categories = [], brands = [], products = [], materials =
                         </select>
                         <input type="number" min="0" step="0.01" placeholder="Filament (g)" title="Filament weight in grams — auto-fills the rate" value={it.filament_weight_grams} onChange={(e) => updateRow(it.key, { filament_weight_grams: e.target.value }, true)} />
                         <input type="number" min="0" step="0.01" placeholder="Time (hrs)" title="Printing time in hours — auto-fills the rate" value={it.print_time_hours} onChange={(e) => updateRow(it.key, { print_time_hours: e.target.value }, true)} />
+                      </div>
+                    )}
+                    {it.item_type === "battery" && (
+                      <div className="manual-print-fields">
+                        <select value={it.b_chemistry} onChange={(e) => {
+                          const nextChem = e.target.value;
+                          const group = nextChem === "LiFePO4" ? "LFP" : (nextChem === "Li-ion" || nextChem === "LiPo") ? "NMC" : "";
+                          const stillValid = group && SERIES_PRESETS[group].some((p) => p.s === it.b_cells);
+                          updateRow(it.key, stillValid ? { b_chemistry: nextChem } : { b_chemistry: nextChem, b_cells: "", b_voltage_v: "" }, false, true);
+                        }} aria-label="Battery chemistry">
+                          <option value="">Chemistry *</option>
+                          <option>Li-ion</option>
+                          <option>LiPo</option>
+                          <option>LiFePO4</option>
+                        </select>
+                        <select
+                          value={(() => {
+                            const all = [...SERIES_PRESETS.NMC, ...SERIES_PRESETS.LFP];
+                            const hit = all.find((p) => p.s === it.b_cells && (!it.b_voltage_v || p.v === it.b_voltage_v || withUnit(it.b_voltage_v, "V") === p.v));
+                            return hit ? `${hit.s}|${hit.v}` : "";
+                          })()}
+                          onChange={(e) => {
+                            const [s, v] = String(e.target.value || "").split("|");
+                            updateRow(it.key, { b_cells: s || "", b_voltage_v: v || "" }, false, true);
+                          }}
+                          aria-label="Series connection"
+                        >
+                          <option value="">Series *</option>
+                          {(it.b_chemistry
+                            ? [[it.b_chemistry === "LiFePO4" ? "LFP" : "NMC", SERIES_PRESETS[it.b_chemistry === "LiFePO4" ? "LFP" : "NMC"]]]
+                            : [["NMC", SERIES_PRESETS.NMC], ["LFP", SERIES_PRESETS.LFP]]
+                          ).map(([gName, presets]) => (
+                            <optgroup key={gName} label={gName}>
+                              {presets.map((p) => (
+                                <option key={`${gName}-${p.s}`} value={`${p.s}|${p.v}`}>{p.s} {p.v}</option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
+                        <input placeholder="Parallel (P)" value={it.b_parallel || ""} onChange={(e) => updateRow(it.key, { b_parallel: e.target.value }, false, true)} style={{ maxWidth: 110 }} />
+                        <select value={it.b_cell_model} onChange={(e) => updateRow(it.key, { b_cell_model: e.target.value }, false, true)} aria-label="Cell model">
+                          <option value="">Cell model</option>
+                          <option>18650</option>
+                          <option>21700</option>
+                          <option>26650</option>
+                          <option>32700</option>
+                          <option>Pouch cell</option>
+                        </select>
+                        <input inputMode="numeric" placeholder="Capacity (mAh) *" value={it.b_capacity_mah} onChange={(e) => updateRow(it.key, { b_capacity_mah: e.target.value }, false, true)} />
+                        <input placeholder="Voltage (auto)" value={it.b_voltage_v} readOnly disabled title="Set by the series selection" />
+                        <input placeholder="Cont. Amp *" value={it.b_cont_amp} onChange={(e) => updateRow(it.key, { b_cont_amp: e.target.value }, false, true)} />
+                        <input placeholder="Peak Amp *" value={it.b_peak_amp} onChange={(e) => updateRow(it.key, { b_peak_amp: e.target.value }, false, true)} />
+                        <select value={it.b_bms} onChange={(e) => updateRow(it.key, { b_bms: e.target.value }, false, true)} aria-label="BMS required">
+                          <option value="Yes">BMS: Yes</option>
+                          <option value="No">BMS: No</option>
+                        </select>
+                        <input placeholder="Connector" value={it.b_connector} onChange={(e) => updateRow(it.key, { b_connector: e.target.value }, false, true)} />
+                        <input inputMode="decimal" placeholder="L (mm)" value={it.b_dim_l} onChange={(e) => updateRow(it.key, { b_dim_l: e.target.value }, false, true)} style={{ maxWidth: 90 }} />
+                        <input inputMode="decimal" placeholder="W (mm)" value={it.b_dim_w} onChange={(e) => updateRow(it.key, { b_dim_w: e.target.value }, false, true)} style={{ maxWidth: 90 }} />
+                        <input inputMode="decimal" placeholder="H (mm)" value={it.b_dim_h} onChange={(e) => updateRow(it.key, { b_dim_h: e.target.value }, false, true)} style={{ maxWidth: 90 }} />
                       </div>
                     )}
                     <div className="manual-item-row">

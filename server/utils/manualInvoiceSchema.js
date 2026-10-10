@@ -73,7 +73,7 @@ const ensureManualInvoiceSchema = async () => {
           CREATE TABLE IF NOT EXISTS manual_invoice_items (
             id INT AUTO_INCREMENT PRIMARY KEY,
             invoice_id INT NOT NULL,
-            item_type ENUM('product', 'print', 'custom') DEFAULT 'product',
+            item_type ENUM('product', 'print', 'custom', 'battery') DEFAULT 'product',
             product_id INT DEFAULT NULL,
             description TEXT NOT NULL,
             hsn VARCHAR(50) DEFAULT NULL,
@@ -90,6 +90,7 @@ const ensureManualInvoiceSchema = async () => {
             filament_weight_grams DECIMAL(10,2) DEFAULT NULL,
             print_time_hours DECIMAL(10,2) DEFAULT NULL,
             surface_finish VARCHAR(20) DEFAULT NULL,
+            battery_specs TEXT DEFAULT NULL,
             sort_order INT DEFAULT 0,
             FOREIGN KEY (invoice_id) REFERENCES manual_invoices(id) ON DELETE CASCADE,
             FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL,
@@ -130,9 +131,11 @@ const ensureManualInvoiceSchema = async () => {
           console.warn(`⚠️ Could not add manual_invoices.amount_paid: ${e.message}`);
         }
         // Print-item extras (filament weight + print time) for older installs.
+        // Battery-pack spec snapshots (JSON) + 'battery' item type.
         for (const [col, def, after] of [
           ["filament_weight_grams", "DECIMAL(10,2) DEFAULT NULL", "infill_density"],
           ["print_time_hours", "DECIMAL(10,2) DEFAULT NULL", "filament_weight_grams"],
+          ["battery_specs", "TEXT DEFAULT NULL", "surface_finish"],
         ]) {
           try {
             const [exists] = await conn.query(
@@ -145,6 +148,20 @@ const ensureManualInvoiceSchema = async () => {
           } catch (e) {
             console.warn(`⚠️ Could not add manual_invoice_items.${col}: ${e.message}`);
           }
+        }
+        // 'battery' line-item type for older installs.
+        try {
+          const [typeRows] = await conn.query(
+            `SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'manual_invoice_items' AND COLUMN_NAME = 'item_type' LIMIT 1`
+          );
+          if (typeRows.length && !String(typeRows[0].COLUMN_TYPE).includes("'battery'")) {
+            await conn.query(
+              "ALTER TABLE `manual_invoice_items` MODIFY COLUMN `item_type` ENUM('product', 'print', 'custom', 'battery') DEFAULT 'product'"
+            );
+            console.log("🧾 manual_invoice_items.item_type now includes 'battery'");
+          }
+        } catch (e) {
+          console.warn(`⚠️ Could not extend manual_invoice_items.item_type: ${e.message}`);
         }
       } finally {
         conn.release();

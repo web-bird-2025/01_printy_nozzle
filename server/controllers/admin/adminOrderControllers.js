@@ -40,11 +40,9 @@ const validateManualPayload = (body = {}) => {
   if (!manualStr(customer.phone)) return "Customer phone is required";
   if (
     manualStr(customer.company_gstin || customer.gstin) &&
-    !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(
-      manualStr(customer.company_gstin || customer.gstin).toUpperCase()
-    )
+    manualStr(customer.company_gstin || customer.gstin).length > 20
   ) {
-    return "Enter a valid 15-character company GSTIN";
+    return "Company GSTIN looks too long (max 20 characters)";
   }
 
   if (!shippingSameAsBilling && shipping) {
@@ -60,7 +58,7 @@ const validateManualPayload = (body = {}) => {
   if (items.length > 100) return "Maximum 100 items per invoice";
   for (let i = 0; i < items.length; i++) {
     const it = items[i] || {};
-    if (!["product", "print", "custom"].includes(it.item_type || "product")) {
+    if (!["product", "print", "custom", "battery"].includes(it.item_type || "product")) {
       return `Item ${i + 1}: unknown item type`;
     }
     if ((it.item_type || "product") === "print" && !manualStr(it.file_name) && !manualStr(it.description)) {
@@ -464,11 +462,11 @@ const createManualInvoice = async (req, res) => {
           `INSERT INTO manual_invoice_items
             (invoice_id, item_type, product_id, description, hsn, rate, qty, disc,
              amount, tax, total, file_name, material_name, color_name, infill_density,
-             filament_weight_grams, print_time_hours, surface_finish, sort_order)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             filament_weight_grams, print_time_hours, surface_finish, battery_specs, sort_order)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             invoiceId,
-            ["product", "print", "custom"].includes(it.item_type) ? it.item_type : "product",
+            ["product", "print", "custom", "battery"].includes(it.item_type) ? it.item_type : "product",
             productId,
             line.description,
             line.hsn,
@@ -485,6 +483,9 @@ const createManualInvoice = async (req, res) => {
             it.filament_weight_grams !== undefined && it.filament_weight_grams !== null && it.filament_weight_grams !== "" ? Number(it.filament_weight_grams) : null,
             it.print_time_hours !== undefined && it.print_time_hours !== null && it.print_time_hours !== "" ? Number(it.print_time_hours) : null,
             manualStr(it.surface_finish) || null,
+            it.battery_specs !== undefined && it.battery_specs !== null && it.battery_specs !== ""
+              ? (typeof it.battery_specs === "string" ? it.battery_specs : JSON.stringify(it.battery_specs))
+              : null,
             line.sno,
           ]
         );
@@ -687,11 +688,11 @@ const updateManualInvoice = async (req, res) => {
           `INSERT INTO manual_invoice_items
             (invoice_id, item_type, product_id, description, hsn, rate, qty, disc,
              amount, tax, total, file_name, material_name, color_name, infill_density,
-             filament_weight_grams, print_time_hours, surface_finish, sort_order)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             filament_weight_grams, print_time_hours, surface_finish, battery_specs, sort_order)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             id,
-            ["product", "print", "custom"].includes(it.item_type) ? it.item_type : "product",
+            ["product", "print", "custom", "battery"].includes(it.item_type) ? it.item_type : "product",
             productId,
             line.description,
             line.hsn,
@@ -708,6 +709,9 @@ const updateManualInvoice = async (req, res) => {
             it.filament_weight_grams !== undefined && it.filament_weight_grams !== null && it.filament_weight_grams !== "" ? Number(it.filament_weight_grams) : null,
             it.print_time_hours !== undefined && it.print_time_hours !== null && it.print_time_hours !== "" ? Number(it.print_time_hours) : null,
             manualStr(it.surface_finish) || null,
+            it.battery_specs !== undefined && it.battery_specs !== null && it.battery_specs !== ""
+              ? (typeof it.battery_specs === "string" ? it.battery_specs : JSON.stringify(it.battery_specs))
+              : null,
             line.sno,
           ]
         );
