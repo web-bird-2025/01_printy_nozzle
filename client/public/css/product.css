@@ -564,6 +564,261 @@
   color: var(--pn-primary);
 }
 
+.product-card-subtitle {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 0.35rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.product-stock-text {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #15803d;
+}
+
+.products-section-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 26px 0 14px 0;
+}
+
+.products-page {
+  background: #f8fafc;
+  padding: 24px 16px 56px;
+}
+
+.products-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.products-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 14px;
+}
+
+.products-breadcrumb a {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.products-breadcrumb-current {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.products-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.products-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.products-subtitle {
+  margin: 4px 0 0 0;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.batt-customize-btn {
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 10px;
+  background: #ea580c;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.batt-customize-btn:hover {
+  background: #c2410c;
+}
+
+/* ================= CUSTOM BATTERY MODAL ================= */
+.batt-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 28px 16px;
+  overflow-y: auto;
+  background: rgba(2, 16, 38, 0.6);
+}
+
+.batt-modal {
+  width: min(880px, 100%);
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 26px 26px 24px;
+  box-shadow: 0 32px 90px rgba(2, 16, 38, 0.4);
+}
+
+.batt-modal-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.batt-modal-num {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #6d28d9;
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.batt-modal-head h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.batt-modal-head p {
+  margin: 2px 0 0 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.batt-modal-close {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: #475569;
+}
+
+.batt-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.batt-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.batt-grid input,
+.batt-grid select {
+  padding: 9px 12px;
+  font-size: 13.5px;
+  font-weight: 400;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 9px;
+  outline: none;
+}
+
+.batt-grid input:focus,
+.batt-grid select:focus {
+  border-color: #6d28d9;
+}
+
+.batt-radio-row {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 14px !important;
+}
+
+.batt-radio-row label {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 5px;
+  font-weight: 400;
+}
+
+.batt-note-label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.batt-note-label textarea {
+  padding: 9px 12px;
+  font-size: 13.5px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 9px;
+  outline: none;
+  resize: vertical;
+}
+
+.batt-hint {
+  margin: 10px 0 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.batt-submit {
+  margin-top: 14px;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #25d366;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.batt-submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (max-width: 640px) {
+  .batt-grid {
+    grid-template-columns: 1fr;
+  }
+  .batt-modal {
+    padding: 20px 16px;
+  }
+}
+
 .product-price-row {
   display: flex;
   align-items: baseline;

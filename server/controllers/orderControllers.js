@@ -776,9 +776,9 @@ const createOrder = async (req, res) => {
       address: String(company_address || "").trim() || null,
       gstin: String(company_gstin || "").trim().toUpperCase() || null,
     };
-    if (company.gstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(company.gstin)) {
+    if (company.gstin && company.gstin.length > 20) {
       await connection.rollback();
-      return res.status(400).json({ success: false, message: "Please enter a valid 15-character GSTIN" });
+      return res.status(400).json({ success: false, message: "Company GSTIN looks too long (max 20 characters)" });
     }
 
     let cartItems;

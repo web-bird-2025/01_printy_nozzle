@@ -163,6 +163,8 @@ const createProduct = async (req, res) => {
       category_id,
       brand_id,
       variation_id,
+      filament_material_id,
+      filament_color_id,
       sku,
       tagline,
       price,
@@ -197,8 +199,8 @@ const createProduct = async (req, res) => {
 
     const [result] = await db.query(
       `INSERT INTO products 
-       (name, slug, sku, tagline, category_id, brand_id, variation_id, price, compare_price, stock, short_description, description, highlights, key_features, specifications, pinout_image, pinout_description, resources, faqs, applications, is_featured, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (name, slug, sku, tagline, category_id, brand_id, variation_id, filament_material_id, filament_color_id, price, compare_price, stock, short_description, description, highlights, key_features, specifications, pinout_image, pinout_description, resources, faqs, applications, is_featured, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         name,
         slug,
@@ -207,6 +209,8 @@ const createProduct = async (req, res) => {
         category_id,
         brand_id || null,
         variation_id || null,
+        filament_material_id || null,
+        filament_color_id || null,
         price,
         compare_price || null,
         stock || 0,
@@ -265,6 +269,8 @@ const updateProduct = async (req, res) => {
       category_id,
       brand_id,
       variation_id,
+      filament_material_id,
+      filament_color_id,
       sku,
       tagline,
       price,
@@ -307,6 +313,8 @@ const updateProduct = async (req, res) => {
          category_id = COALESCE(?, category_id),
          brand_id = COALESCE(?, brand_id),
          variation_id = CASE WHEN ? THEN NULL ELSE COALESCE(?, variation_id) END,
+         filament_material_id = CASE WHEN ? THEN NULL ELSE COALESCE(?, filament_material_id) END,
+         filament_color_id = CASE WHEN ? THEN NULL ELSE COALESCE(?, filament_color_id) END,
          price = COALESCE(?, price),
          compare_price = COALESCE(?, compare_price),
          stock = COALESCE(?, stock),
@@ -332,6 +340,10 @@ const updateProduct = async (req, res) => {
         brand_id !== undefined ? brand_id : null,
         variation_id === "" ? 1 : 0,
         variation_id !== undefined && variation_id !== "" ? variation_id : null,
+        filament_material_id === "" ? 1 : 0,
+        filament_material_id !== undefined && filament_material_id !== "" ? filament_material_id : null,
+        filament_color_id === "" ? 1 : 0,
+        filament_color_id !== undefined && filament_color_id !== "" ? filament_color_id : null,
         price || null,
         compare_price !== undefined ? compare_price : null,
         stock !== undefined ? stock : null,

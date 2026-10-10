@@ -29,6 +29,14 @@ let footerData = {
           label: "3d Printing",
           url: "/3d-printing",
         },
+        {
+          label: "Filaments",
+          url: "/filaments",
+        },
+        {
+          label: "Battery Packs",
+          url: "/batteries",
+        },
       ],
     },
     {

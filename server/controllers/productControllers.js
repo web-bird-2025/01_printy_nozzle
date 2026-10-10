@@ -92,27 +92,61 @@ const getAllProducts = async (req, res) => {
     );
     const total = countResult[0].total;
 
-    // Rows
-    const [products] = await db.query(
-      `SELECT p.id, p.name, p.slug, p.tagline, p.badge, p.short_description, 
-              p.price, p.compare_price, p.stock, p.avg_rating, p.review_count,
-              p.is_bestseller, p.is_featured, p.is_new,
-              c.name as category_name, c.slug as category_slug,
-              b.name as brand_name,
-              (SELECT image_url FROM product_images WHERE product_id = p.id AND is_primary = 1 LIMIT 1) as primary_image,
-              CASE 
-                WHEN p.compare_price > p.price 
-                THEN ROUND(((p.compare_price - p.price) / p.compare_price) * 100)
-                ELSE 0 
-              END as discount_percent
-       FROM products p
-       LEFT JOIN categories c ON p.category_id = c.id
-       LEFT JOIN brands b ON p.brand_id = b.id
-       WHERE ${whereSql}
-       ORDER BY ${orderBy}
-       LIMIT ? OFFSET ?`,
-      [...params, parseInt(limit), offset]
-    );
+    // Rows (filament joins degrade gracefully on DBs missing the columns)
+    let products;
+    try {
+      [products] = await db.query(
+        `SELECT p.id, p.name, p.slug, p.tagline, p.badge, p.short_description, 
+                p.price, p.compare_price, p.stock, p.avg_rating, p.review_count,
+                p.is_bestseller, p.is_featured, p.is_new,
+                p.filament_material_id, p.filament_color_id,
+                c.name as category_name, c.slug as category_slug,
+                b.name as brand_name,
+                pm.name as filament_material_name,
+                pc.name as filament_color_name, pc.hex_code as filament_color_hex,
+                (SELECT image_url FROM product_images WHERE product_id = p.id AND is_primary = 1 LIMIT 1) as primary_image,
+                CASE 
+                  WHEN p.compare_price > p.price 
+                  THEN ROUND(((p.compare_price - p.price) / p.compare_price) * 100)
+                  ELSE 0 
+                END as discount_percent
+         FROM products p
+         LEFT JOIN categories c ON p.category_id = c.id
+         LEFT JOIN brands b ON p.brand_id = b.id
+         LEFT JOIN printing_materials pm ON p.filament_material_id = pm.id
+         LEFT JOIN printing_colors pc ON p.filament_color_id = pc.id
+         WHERE ${whereSql}
+         ORDER BY ${orderBy}
+         LIMIT ? OFFSET ?`,
+        [...params, parseInt(limit), offset]
+      );
+    } catch (e) {
+      if (e && (e.code === "ER_BAD_FIELD_ERROR" || e.code === "ER_NO_SUCH_TABLE" || /Unknown column|doesn't exist/i.test(e.message || ""))) {
+        console.warn("Product filament columns unavailable, serving without them:", e.message);
+        [products] = await db.query(
+          `SELECT p.id, p.name, p.slug, p.tagline, p.badge, p.short_description, 
+                  p.price, p.compare_price, p.stock, p.avg_rating, p.review_count,
+                  p.is_bestseller, p.is_featured, p.is_new,
+                  c.name as category_name, c.slug as category_slug,
+                  b.name as brand_name,
+                  (SELECT image_url FROM product_images WHERE product_id = p.id AND is_primary = 1 LIMIT 1) as primary_image,
+                  CASE 
+                    WHEN p.compare_price > p.price 
+                    THEN ROUND(((p.compare_price - p.price) / p.compare_price) * 100)
+                    ELSE 0 
+                  END as discount_percent
+           FROM products p
+           LEFT JOIN categories c ON p.category_id = c.id
+           LEFT JOIN brands b ON p.brand_id = b.id
+           WHERE ${whereSql}
+           ORDER BY ${orderBy}
+           LIMIT ? OFFSET ?`,
+          [...params, parseInt(limit), offset]
+        );
+      } else {
+        throw e;
+      }
+    }
 
     return res.status(200).json({
       success: true,
@@ -140,24 +174,52 @@ const getProductById = async (req, res) => {
     const isNumeric = !isNaN(id) && !isNaN(parseFloat(id));
     const queryField = isNumeric ? "p.id = ?" : "p.slug = ?";
 
-    const [products] = await db.query(
-      `SELECT p.*,
-              c.id as category_id, c.name as category_name, c.slug as category_slug,
-              b.id as brand_id, b.name as brand_name, b.logo_url as brand_logo,
-              v.name as variation_name, v.slug as variation_slug,
-              CASE 
-                WHEN p.compare_price > p.price 
-                THEN ROUND(((p.compare_price - p.price) / p.compare_price) * 100)
-                ELSE 0 
-              END as discount_percent,
-              (p.stock > 0) as is_in_stock
-       FROM products p
-       LEFT JOIN categories c ON p.category_id = c.id
-       LEFT JOIN brands b ON p.brand_id = b.id
-       LEFT JOIN variations v ON p.variation_id = v.id
-       WHERE ${queryField} AND p.is_active = 1`,
-      [id]
-    );
+    let products;
+    try {
+      [products] = await db.query(
+        `SELECT p.*,
+                c.id as category_id, c.name as category_name, c.slug as category_slug,
+                b.id as brand_id, b.name as brand_name, b.logo_url as brand_logo,
+                v.name as variation_name, v.slug as variation_slug,
+                pm.name as filament_material_name, pc.name as filament_color_name, pc.hex_code as filament_color_hex,
+                CASE 
+                  WHEN p.compare_price > p.price 
+                  THEN ROUND(((p.compare_price - p.price) / p.compare_price) * 100)
+                  ELSE 0 
+                END as discount_percent,
+                (p.stock > 0) as is_in_stock
+         FROM products p
+         LEFT JOIN categories c ON p.category_id = c.id
+         LEFT JOIN brands b ON p.brand_id = b.id
+         LEFT JOIN variations v ON p.variation_id = v.id
+         LEFT JOIN printing_materials pm ON p.filament_material_id = pm.id
+         LEFT JOIN printing_colors pc ON p.filament_color_id = pc.id
+         WHERE ${queryField} AND p.is_active = 1`,
+        [id]
+      );
+    } catch (e) {
+      if (e && (e.code === "ER_BAD_FIELD_ERROR" || e.code === "ER_NO_SUCH_TABLE" || /Unknown column|doesn't exist/i.test(e.message || ""))) {
+        console.warn("Product detail enrichment unavailable, serving core data:", e.message);
+        [products] = await db.query(
+          `SELECT p.*,
+                  c.id as category_id, c.name as category_name, c.slug as category_slug,
+                  b.id as brand_id, b.name as brand_name, b.logo_url as brand_logo,
+                  CASE 
+                    WHEN p.compare_price > p.price 
+                    THEN ROUND(((p.compare_price - p.price) / p.compare_price) * 100)
+                    ELSE 0 
+                  END as discount_percent,
+                  (p.stock > 0) as is_in_stock
+           FROM products p
+           LEFT JOIN categories c ON p.category_id = c.id
+           LEFT JOIN brands b ON p.brand_id = b.id
+           WHERE ${queryField} AND p.is_active = 1`,
+          [id]
+        );
+      } else {
+        throw e;
+      }
+    }
 
     if (products.length === 0) {
       return res.status(404).json({ success: false, message: "Product not found" });
@@ -282,6 +344,18 @@ const getProductById = async (req, res) => {
       ? { id: product.variation_id, name: product.variation_name || "", slug: product.variation_slug || "" }
       : null;
     product.variation_products = variationProducts;
+
+    // Filament link (material + color names for filament products)
+    product.filament = product.filament_material_id || product.filament_color_id
+      ? {
+          material_id: product.filament_material_id,
+          material_name: product.filament_material_name || null,
+          color_id: product.filament_color_id,
+          color: product.filament_color_name
+            ? { name: product.filament_color_name, hex: product.filament_color_hex }
+            : null,
+        }
+      : null;
 
     return res.status(200).json({
       success: true,

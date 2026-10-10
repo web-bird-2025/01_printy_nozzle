@@ -3951,6 +3951,11 @@
   color: #92400e;
 }
 
+.manual-type-pill.battery {
+  background: #e6f7ec;
+  color: #15803d;
+}
+
 .manual-desc {
   border: 1.5px solid #dbe4f0;
   border-radius: 10px;

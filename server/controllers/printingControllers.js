@@ -576,8 +576,8 @@ const createPrintOrder = async (req, res) => {
     }
 
     const companyGstin = String(company_gstin || "").trim().toUpperCase() || null;
-    if (companyGstin && !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(companyGstin)) {
-      return res.status(400).json({ success: false, message: "Please enter a valid 15-character GSTIN" });
+    if (companyGstin && companyGstin.length > 20) {
+      return res.status(400).json({ success: false, message: "Company GSTIN looks too long (max 20 characters)" });
     }
 
     // Get material

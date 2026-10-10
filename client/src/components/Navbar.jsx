@@ -18,6 +18,8 @@ function Navbar() {
     onProductsPage && new URLSearchParams(location.search).get("sort") === "bestselling";
   const isProductsActive = onProductsPage && !isBestSellingView;
   const isBestSellersActive = onProductsPage && isBestSellingView;
+  const isPrintingActive = ["/3d-printing", "/printing", "/filaments"].includes(location.pathname);
+  const isBatteriesActive = location.pathname === "/batteries";
 
   /* =====================================================
      REFS
@@ -766,15 +768,57 @@ useEffect(() => {
                   3D PRINTING
                   ================================================= */}
 
-              <li className="nav-item">
+              <li
+                className={`nav-item products-nav-item printing-nav-item ${openMenu === "printing" ? "open" : ""}`}
+                onMouseEnter={() => openDesktopMenu("printing")}
+                onMouseLeave={scheduleDesktopMenuClose}
+              >
                 <NavLink
                   to="/3d-printing"
-                  className={({ isActive }) =>
-                    `nav-link-custom ${isActive ? "active" : ""}`
+                  className={() =>
+                    `nav-link-custom ${isPrintingActive ? "active" : ""}`
                   }
                   onClick={closeNavbar}
                 >
-                  3D Printing
+                  <span>3D Printing</span>
+
+                  <i className="bi bi-chevron-down products-arrow"></i>
+                </NavLink>
+
+                {/* 3D PRINTING DROPDOWN */}
+
+                <div
+                  className={`products-dropdown ${openMenu === "printing" ? "open" : ""}`}
+                  onMouseEnter={() => openDesktopMenu("printing")}
+                  onMouseLeave={scheduleDesktopMenuClose}
+                >
+                  <NavLink to="/3d-printing" onClick={closeNavbar}>
+                    <i className="bi bi-boxes"></i>
+
+                    <span>Custom 3D Print</span>
+                  </NavLink>
+
+                  <NavLink to="/filaments" onClick={closeNavbar}>
+                    <i className="bi bi-stack"></i>
+
+                    <span>3D Printing Filaments</span>
+                  </NavLink>
+                </div>
+              </li>
+
+              {/* =================================================
+                  LITHIUM BATTERY PACKS
+                  ================================================= */}
+
+              <li className="nav-item">
+                <NavLink
+                  to="/batteries"
+                  className={() =>
+                    `nav-link-custom ${isBatteriesActive ? "active" : ""}`
+                  }
+                  onClick={closeNavbar}
+                >
+                  Lithium Battery Packs
                 </NavLink>
               </li>
               
@@ -1281,7 +1325,39 @@ useEffect(() => {
               }
               onClick={closeNavbar}
             >
-              <span>3D Printing</span>
+              <span>Custom 3D Print</span>
+
+              <i className="bi bi-chevron-right"></i>
+            </NavLink>
+
+            {/* =================================================
+                3D PRINTING FILAMENTS
+                ================================================= */}
+
+            <NavLink
+              to="/filaments"
+              className={({ isActive }) =>
+                `mobile-nav-link ${isActive ? "active" : ""}`
+              }
+              onClick={closeNavbar}
+            >
+              <span>3D Printing Filaments</span>
+
+              <i className="bi bi-chevron-right"></i>
+            </NavLink>
+
+            {/* =================================================
+                LITHIUM BATTERY PACKS
+                ================================================= */}
+
+            <NavLink
+              to="/batteries"
+              className={({ isActive }) =>
+                `mobile-nav-link ${isActive ? "active" : ""}`
+              }
+              onClick={closeNavbar}
+            >
+              <span>Lithium Battery Packs</span>
 
               <i className="bi bi-chevron-right"></i>
             </NavLink>

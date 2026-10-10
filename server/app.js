@@ -68,6 +68,13 @@ try {
   console.warn("⚠️ variationSchema preload skipped:", e.message);
 }
 
+// Self-healing DB migration for filament + battery-pack storefront catalogs
+try {
+  require("./utils/filamentBatterySchema");
+} catch (e) {
+  console.warn("⚠️ filamentBatterySchema preload skipped:", e.message);
+}
+
 // Client Routers
 const authRoutes = require("./routers/authRoutes");
 const profileRoutes = require("./routers/profileRoutes");
